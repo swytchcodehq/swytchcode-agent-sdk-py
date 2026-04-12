@@ -2,10 +2,52 @@
 
 import json
 import os
+import shutil
 import subprocess
+import sys
 from typing import Any
 
 from .errors import SwytchcodeError
+
+
+def _resolve_bin() -> str:
+    """
+    Resolve the swytchcode binary path using the following order:
+
+    1. SWYTCHCODE_BIN env var — explicit override.
+    2. PATH lookup via shutil.which — the standard resolution.
+    3. Common install-path fallbacks for when PATH is not configured.
+    """
+    # 1. Explicit override
+    explicit = os.environ.get("SWYTCHCODE_BIN", "").strip()
+    if explicit:
+        return explicit
+
+    # 2. PATH lookup
+    found = shutil.which("swytchcode")
+    if found:
+        return found
+
+    # 3. Common install-path fallbacks
+    if sys.platform == "win32":
+        local_app_data = os.environ.get("LOCALAPPDATA", "")
+        candidates = [
+            os.path.join(
+                local_app_data, "Programs", "swytchcode", "bin", "swytchcode.exe"
+            ),
+        ]
+    else:
+        home = os.path.expanduser("~")
+        candidates = [
+            os.path.join(home, ".local", "bin", "swytchcode"),
+            "/usr/local/bin/swytchcode",
+        ]
+
+    for path in candidates:
+        if path and os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+
+    return "swytchcode"  # fall through; subprocess.run reports FileNotFoundError if still missing
 
 
 def exec_(  # noqa: A001 - shadowing intentional for API consistency with JS/Go
@@ -50,7 +92,8 @@ def exec_(  # noqa: A001 - shadowing intentional for API consistency with JS/Go
         raise SwytchcodeError("canonical_id must be a non-empty string")
 
     flag = "--raw" if raw else "--json"
-    cmd = ["swytchcode", "exec", canonical_id, flag]
+    bin_path = _resolve_bin()
+    cmd = [bin_path, "exec", canonical_id, flag]
     if dry_run:
         cmd.append("--dry-run")
     if allow_raw:
@@ -74,7 +117,12 @@ def exec_(  # noqa: A001 - shadowing intentional for API consistency with JS/Go
             timeout=None,
         )
     except FileNotFoundError as e:
-        raise SwytchcodeError("Failed to spawn swytchcode", e) from e
+        hint = (
+            f"using binary at {bin_path!r}"
+            if "SWYTCHCODE_BIN" in os.environ
+            else "install it with: npm install -g swytchcode (or set SWYTCHCODE_BIN=/path/to/binary)"
+        )
+        raise SwytchcodeError(f"Failed to spawn swytchcode — {hint}", e) from e
     except OSError as e:
         raise SwytchcodeError("Failed to run swytchcode", e) from e
 

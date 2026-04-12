@@ -2,7 +2,11 @@
 
 Thin runtime wrapper around the Swytchcode CLI. Calls `swytchcode exec` for you so you can stay in Python without shell boilerplate.
 
-**Requires:** The `swytchcode` binary must be installed and on your `PATH`.
+**Requires:** The `swytchcode` CLI must be installed. The binary is located automatically — no configuration needed in most environments. Resolution order:
+
+1. `SWYTCHCODE_BIN` env var — explicit override.
+2. `$PATH` lookup via `shutil.which` — the standard system resolution.
+3. Common install paths — `~/.local/bin`, `/usr/local/bin` (Unix) or `%LOCALAPPDATA%\Programs\swytchcode\bin` (Windows).
 
 ## Install
 
@@ -66,6 +70,13 @@ output = exec("api.report.export", {"id": "123"}, raw=True)
 - **allow_raw** – If `True`, pass `--allow-raw` to the CLI; required for executing raw methods (kernel has this disabled by default).
 
 This runtime invokes `swytchcode exec [canonical_id]` with the flags above. For full exec behavior, see the Swytchcode kernel documentation.
+
+### Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `SWYTCHCODE_BIN` | Override the resolved binary path. Set this only when automatic resolution does not find the correct binary (e.g. non-standard install locations or virtualised environments). |
+| `SWYTCHCODE_TOKEN` | Auth token passed to the CLI via the process environment. |
 
 ### Error handling
 
