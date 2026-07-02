@@ -9,6 +9,10 @@ from .providers.base import Provider, Tool
 class _Tools:
     def __init__(self, client: "Swytchcode"):
         self._c = client
+        # Maps a sanitized tool name (dots -> underscores) back to its canonical
+        # ID, populated as tools are built. Used to reverse names in
+        # handle_tool_calls without a lossy "_"->"." string replace.
+        self._name_to_cid: dict[str, str] = {}
 
     def get(self, *, toolkits=None, tools=None, search=None):
         neutral = [self._tool(cid) for cid in self._ids(toolkits, tools, search)]
@@ -25,9 +29,11 @@ class _Tools:
 
     def _tool(self, cid: str) -> Tool:
         m = _discover.info(cid)
+        name = cid.replace(".", "_")
+        self._name_to_cid[name] = cid
         return Tool(
             canonical_id=cid,
-            name=cid.replace(".", "_"),
+            name=name,
             description=m.get("summary") or m.get("description") or cid,
             input_schema=_schema.simplify(m.get("inputs")),
             execute=lambda args, _c=cid: self.execute(_c, args),
@@ -64,7 +70,11 @@ class Swytchcode:
         results = []
         for block in getattr(response, "content", []):
             if getattr(block, "type", "") == "tool_use":
-                result = self.tools.execute(block.name.replace("_", "."), getattr(block, "input", {}))
+                # Reverse the sanitized name via the map built in _tool(). A plain
+                # "_"->"." replace would corrupt canonical IDs whose segments
+                # contain underscores (e.g. stripe.create_payment).
+                cid = self.tools._name_to_cid.get(block.name) or block.name.replace("_", ".")
+                result = self.tools.execute(cid, getattr(block, "input", {}))
                 results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
