@@ -138,7 +138,7 @@ from swytchcode_runtime import Swytchcode
 from swytchcode_runtime.providers.anthropic import AnthropicProvider
 
 swx = Swytchcode(provider=AnthropicProvider())
-tools = swx.tools.get(toolkits=["stripe"])   # framework-native tools, required-fields-only
+tools = swx.tools.get(toolkits=["stripe"])   # framework-native tools, full param schemas
 ```
 
 ### Selecting tools — `swx.tools.get(...)`
@@ -149,8 +149,9 @@ Pass exactly one selector; IDs resolve against your local Swytchcode state and r
 - `tools=["charges.charge.create"]` — explicit canonical IDs.
 - `search="refund a charge"` — natural-language discovery (via `swytchcode discover`).
 
-Each returned tool carries a **required-fields-only** input schema — optional fields are not
-surfaced to the model — and an `execute` callback that runs `swytchcode exec` for you.
+Each returned tool carries a **full input schema** — every field is surfaced to the model, with
+only the truly-required ones marked `required` — and an `execute` callback that runs `swytchcode
+exec` for you (empty optional values are stripped before the call so APIs like Stripe don't reject them).
 
 ### Supported providers
 
@@ -171,7 +172,7 @@ returns the `tool_result` blocks to send back:
 import anthropic
 client = anthropic.Anthropic()
 msg = client.messages.create(
-    model="claude-sonnet-4-6", max_tokens=1024, tools=tools,
+    model="claude-sonnet-5", max_tokens=1024, tools=tools,
     messages=[{"role": "user", "content": "Refund charge ch_123 for $20"}],
 )
 results = swx.handle_tool_calls(msg)   # runs the tool calls, returns tool_result blocks
