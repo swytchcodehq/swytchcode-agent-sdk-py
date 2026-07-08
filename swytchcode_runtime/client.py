@@ -1,4 +1,5 @@
 """High-level agentic client on top of the existing exec()."""
+
 from __future__ import annotations
 from typing import Any, Optional
 
@@ -24,6 +25,7 @@ def _strip_empty(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_strip_empty(v) for v in obj]
     return obj
+
 
 class _Tools:
     def __init__(self, client: "Swytchcode"):
@@ -72,7 +74,11 @@ class _Tools:
         if search:
             # Mirror the TS runtime: resolve a natural-language search to
             # canonical IDs via the CLI's discover/search.
-            return [t["canonical_id"] for t in _discover.search(search) if t.get("canonical_id")]
+            return [
+                t["canonical_id"]
+                for t in _discover.search(search)
+                if t.get("canonical_id")
+            ]
         if toolkits:
             # Resolve toolkits against local tooling.json instead of global search
             res = _manage.list_tools("tooling")
@@ -90,7 +96,7 @@ class Swytchcode:
     def __init__(self, provider: Optional[Provider] = None):
         self.provider = provider
         self.tools = _Tools(self)
-        
+
     def handle_tool_calls(self, response: Any) -> list[dict]:
         """Helper to execute tools for non-agentic APIs like Anthropic."""
         results = []
@@ -99,11 +105,15 @@ class Swytchcode:
                 # Reverse the sanitized name via the map built in _tool(). A plain
                 # "_"->"." replace would corrupt canonical IDs whose segments
                 # contain underscores (e.g. stripe.create_payment).
-                cid = self.tools._name_to_cid.get(block.name) or block.name.replace("_", ".")
+                cid = self.tools._name_to_cid.get(block.name) or block.name.replace(
+                    "_", "."
+                )
                 result = self.tools.execute(cid, getattr(block, "input", {}))
-                results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": str(result)
-                })
+                results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": str(result),
+                    }
+                )
         return results

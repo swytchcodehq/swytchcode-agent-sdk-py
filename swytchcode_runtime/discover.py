@@ -1,10 +1,13 @@
 """Find tools by intent and read their schemas."""
+
 from __future__ import annotations
 from .cli import run_cli
+
 
 def search(intent: str, *, top: int = 5) -> list[dict]:
     res = run_cli(["discover", intent, "--top", str(top)]) or {}
     return res.get("capabilities", [])
+
 
 def info(canonical_id: str) -> dict:
     try:
@@ -14,5 +17,7 @@ def info(canonical_id: str) -> dict:
             return result[0] if result else {}
         return result
     except Exception as e:
-        print(f"Warning: Failed to fetch info for {canonical_id} ({e}). Using empty schema.")
+        print(
+            f"Warning: Failed to fetch info for {canonical_id} ({e}). Using empty schema."
+        )
         return {"canonical_id": canonical_id, "inputs": {}}

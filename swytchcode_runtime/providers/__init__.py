@@ -11,5 +11,5 @@ __all__ = [
     "CrewAIProvider",
     "LangGraphProvider",
     "OpenAIAgentsProvider",
-    "VercelProvider"
+    "VercelProvider",
 ]
