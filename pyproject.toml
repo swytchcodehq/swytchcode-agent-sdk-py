@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.urls]
-repository = "https://github.com/swytchcodehq/swytchcode-agent-sdk-py"
+repository = "https://github.com/swytchcodehq/swy-runtime-py"
 
 [tool.setuptools.packages.find]
 where = ["."]
