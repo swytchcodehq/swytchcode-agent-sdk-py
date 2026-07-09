@@ -3,8 +3,8 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "swytchcode-agent-sdk-py"
-version = "1.0.0-beta.1"
+name = "swytchcode-py-runtime"
+version = "1.0.0-beta.2"
 description = "Thin runtime wrapper around the Swytchcode CLI"
 readme = "README.md"
 license = { text = "MIT" }
