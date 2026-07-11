@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swytchcode-runtime"
-version = "1.0.0-beta.2"
+version = "1.0.0"
 description = "Thin runtime wrapper around the Swytchcode CLI"
 readme = "README.md"
 license = { text = "MIT" }
