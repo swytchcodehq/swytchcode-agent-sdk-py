@@ -129,16 +129,51 @@ def create_account(input: dict) -> any:
 
 ## Agentic workflows (framework integrations)
 
-On top of `exec`, the runtime exposes a small agentic surface that turns Swytchcode tools
-into the native tool objects each agent framework expects. The Swytchcode part is the same
-two lines regardless of framework:
+For full, production-ready examples across all major frameworks, check out the [Swytchcode Examples Repository](https://github.com/swytchcodehq/swytchcode-examples).
 
+On top of `exec`, the runtime exposes a small agentic surface that turns Swytchcode tools into the native tool objects each agent framework expects. 
+
+### Quickstart: Anthropic SDK
+
+Here is a clean example of building a simple agent using the Anthropic SDK. We use `python-dotenv` to load environment variables (like `ANTHROPIC_API_KEY`).
+
+**Installation:**
+```bash
+pip install swytchcode-runtime anthropic python-dotenv
+```
+*(Note: You only need to install the SDK for the framework you are actually using. You **do not** need to install `openai-agents` or `langchain` if you are only using Anthropic. The `swytchcode-runtime` isolates these dependencies via lazy loading.)*
+
+**Example:**
 ```python
+import os
+from dotenv import load_dotenv
+import anthropic
 from swytchcode_runtime import Swytchcode
 from swytchcode_runtime.providers.anthropic import AnthropicProvider
 
-swx = Swytchcode(provider=AnthropicProvider())
-tools = swx.tools.get(toolkits=["stripe"])   # framework-native tools, full param schemas
+load_dotenv()  # Loads .env automatically
+
+def run_agent():
+    client = anthropic.Anthropic()
+    
+    # 1. Initialize Swytchcode with the Anthropic provider
+    swx = Swytchcode(provider=AnthropicProvider())
+    
+    # 2. Fetch the tools you want your agent to use (e.g., Stripe tools)
+    tools = swx.tools.get(toolkits=["stripe"])
+
+    # 3. Pass them to Claude
+    response = client.messages.create(
+        model="claude-3-5-sonnet-latest",
+        max_tokens=1024,
+        tools=tools,
+        messages=[{"role": "user", "content": "Refund charge ch_123 for $20."}],
+    )
+
+    print(response)
+
+if __name__ == "__main__":
+    run_agent()
 ```
 
 ### Selecting tools — `swx.tools.get(...)`
