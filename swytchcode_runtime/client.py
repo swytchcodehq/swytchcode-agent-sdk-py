@@ -8,6 +8,29 @@ from .exec import exec_ as _exec
 from .providers.base import Provider, Tool
 
 
+def _toolkit_matches(toolkit: str, integration: str) -> bool:
+    """Case-insensitive match of a toolkit name against an integration string.
+
+    integration has the shape "ProjectDisplayName.library_slug@version"
+    (e.g. "GitHub.github@1.1.4"). We compare against both the project name
+    and the library slug so that ``toolkits=["github"]`` matches regardless
+    of the capitalised display name.
+    """
+    tk = toolkit.lower()
+    # Strip version: "GitHub.github@1.1.4" → "GitHub.github"
+    at_idx = integration.find("@")
+    prefix = integration[:at_idx] if at_idx != -1 else integration
+    # Split project.library: "GitHub.github" → ("GitHub", "github")
+    dot_idx = prefix.find(".")
+    if dot_idx != -1:
+        project = prefix[:dot_idx].lower()
+        lib_slug = prefix[dot_idx + 1 :].lower()
+    else:
+        project = prefix.lower()
+        lib_slug = ""
+    return tk == project or tk == lib_slug or tk == prefix.lower()
+
+
 def _strip_empty(obj: Any) -> Any:
     """Recursively drop keys whose value is None or an empty string ("").
 
@@ -27,6 +50,33 @@ def _strip_empty(obj: Any) -> Any:
     return obj
 
 
+def _split_by_location(inputs: Any, flat_args: dict) -> dict:
+    """Route flat args into body/params based on LOCATION metadata from wrekenfile."""
+    body = {}
+    params = {}
+    # inputs is the raw wrekenfile list-of-single-key-dicts with LOCATION
+    locations = {}
+    if isinstance(inputs, list):
+        for item in inputs:
+            if isinstance(item, dict):
+                for name, spec in item.items():
+                    if isinstance(spec, dict):
+                        loc = (spec.get("LOCATION") or spec.get("location") or "body").lower()
+                        locations[name] = loc
+    for key, val in flat_args.items():
+        loc = locations.get(key, "body")
+        if loc in ("path", "query"):
+            params[key] = val
+        else:
+            body[key] = val
+    result = {}
+    if body:
+        result["body"] = body
+    if params:
+        result["params"] = params
+    return result if result else {"body": flat_args}
+
+
 class _Tools:
     def __init__(self, client: "Swytchcode"):
         self._c = client
@@ -44,7 +94,11 @@ class _Tools:
         # If args are flat (no body/params top-level keys), wrap them in body
         # as expected by the Swytchcode CLI kernel (like in run-workflow.js)
         if "body" not in args and "params" not in args:
-            args = {"body": args}
+            _raw_inputs = options.pop("_raw_inputs", None)
+            if _raw_inputs is not None:
+                args = _split_by_location(_raw_inputs, args)
+            else:
+                args = {"body": args}
         # Drop empty optional fields (None/"") from body & params so values an
         # agent over-filled don't reach the API (e.g. Stripe rejects customer="").
         args = dict(args)
@@ -59,12 +113,13 @@ class _Tools:
         m = _discover.info(cid)
         name = cid.replace(".", "_")
         self._name_to_cid[name] = cid
+        raw_inputs = m.get("inputs")
         return Tool(
             canonical_id=cid,
             name=name,
             description=m.get("summary") or m.get("description") or cid,
-            input_schema=_schema.simplify(m.get("inputs")),
-            execute=lambda args, _c=cid: self.execute(_c, args),
+            input_schema=_schema.simplify(raw_inputs),
+            execute=lambda args, _c=cid, _inputs=raw_inputs: self.execute(_c, args, _raw_inputs=_inputs),
         )
 
     def _ids(self, toolkits, tools, search) -> list[str]:
@@ -89,9 +144,7 @@ class _Tools:
                 if not cid:
                     continue
                 for tk in toolkits:
-                    # integration is "project.library@version"; match the project
-                    # segment exactly, not a loose substring (so "hub" != "github").
-                    if tk == integration or integration.startswith(f"{tk}."):
+                    if _toolkit_matches(tk, integration):
                         found.append(cid)
                         break
             return found
