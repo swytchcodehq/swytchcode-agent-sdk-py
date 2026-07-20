@@ -11,6 +11,7 @@ __all__ = [
     "is_swytchcode_error",
 ]
 
+
 def __getattr__(name):
     """Lazy provider imports for backward compatibility."""
     _provider_map = {
@@ -23,6 +24,7 @@ def __getattr__(name):
     if name in _provider_map:
         module_path, attr = _provider_map[name]
         import importlib
+
         mod = importlib.import_module(f".{module_path}", __package__)
         return getattr(mod, attr)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

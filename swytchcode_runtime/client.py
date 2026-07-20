@@ -61,7 +61,9 @@ def _split_by_location(inputs: Any, flat_args: dict) -> dict:
             if isinstance(item, dict):
                 for name, spec in item.items():
                     if isinstance(spec, dict):
-                        loc = (spec.get("LOCATION") or spec.get("location") or "body").lower()
+                        loc = (
+                            spec.get("LOCATION") or spec.get("location") or "body"
+                        ).lower()
                         locations[name] = loc
     for key, val in flat_args.items():
         loc = locations.get(key, "body")
@@ -119,7 +121,9 @@ class _Tools:
             name=name,
             description=m.get("summary") or m.get("description") or cid,
             input_schema=_schema.simplify(raw_inputs),
-            execute=lambda args, _c=cid, _inputs=raw_inputs: self.execute(_c, args, _raw_inputs=_inputs),
+            execute=lambda args, _c=cid, _inputs=raw_inputs: self.execute(
+                _c, args, _raw_inputs=_inputs
+            ),
         )
 
     def _ids(self, toolkits, tools, search) -> list[str]:
