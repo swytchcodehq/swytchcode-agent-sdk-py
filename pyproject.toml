@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swytchcode-runtime"
-version = "0.1.0"
+version = "1.0.0"
 description = "Thin runtime wrapper around the Swytchcode CLI"
 readme = "README.md"
 license = { text = "MIT" }
@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.urls]
-repository = "https://gitlab.com/swytchcode/py-runtime"
+repository = "https://github.com/swytchcodehq/runtime-py"
 
 [tool.setuptools.packages.find]
 where = ["."]
