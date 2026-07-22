@@ -59,6 +59,7 @@ def exec_(  # noqa: A001 - shadowing intentional for API consistency with JS/Go
     raw: bool = False,
     dry_run: bool = False,
     allow_raw: bool = False,
+    timeout: float | None = None,
 ) -> Any:
     """
     Run swytchcode exec <canonical_id> with optional JSON args on stdin.
@@ -80,6 +81,7 @@ def exec_(  # noqa: A001 - shadowing intentional for API consistency with JS/Go
         raw: If True, use --raw and return stdout as a string.
         dry_run: If True, pass --dry-run; request details are output instead of calling the server.
         allow_raw: If True, pass --allow-raw; required for executing raw methods (kernel default is disabled).
+        timeout: Optional timeout in seconds for the subprocess.
 
     Returns:
         Parsed result (any) or raw string when raw is True.
@@ -114,8 +116,10 @@ def exec_(  # noqa: A001 - shadowing intentional for API consistency with JS/Go
             capture_output=True,
             cwd=cwd or os.getcwd(),
             env=run_env,
-            timeout=None,
+            timeout=timeout,
         )
+    except subprocess.TimeoutExpired as e:
+        raise SwytchcodeError(f"swytchcode exec timed out after {timeout} seconds", e) from e
     except FileNotFoundError as e:
         hint = (
             f"using binary at {bin_path!r}"

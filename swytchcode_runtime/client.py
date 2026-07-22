@@ -124,7 +124,19 @@ class _Tools:
 
     def _tool(self, cid: str) -> Tool:
         m = _discover.info(cid)
-        name = cid.replace(".", "_")
+        if not m or not m.get("inputs"):
+            raise ValueError(f"Tool discovery failed for {cid}: Invalid or missing Wrekenfile schema")
+
+        import re
+        name = re.sub(r'[^a-zA-Z0-9_-]', '_', cid)
+        
+        # Handle name collision (e.g. github.user vs github_user)
+        suffix = 0
+        base_name = name
+        while name in self._name_to_cid and self._name_to_cid[name] != cid:
+            suffix += 1
+            name = f"{base_name}_{suffix}"
+
         self._name_to_cid[name] = cid
         raw_inputs = m.get("inputs")
         self._cid_to_inputs[cid] = raw_inputs
@@ -172,7 +184,7 @@ class Swytchcode:
         self.provider = provider
         self.tools = _Tools(self)
 
-    def handle_tool_calls(self, response: Any) -> list[dict]:
+    def handle_tool_calls(self, response: Any, timeout: float | None = None) -> list[dict]:
         """Helper to execute tools for non-agentic APIs like Anthropic."""
         results = []
         for block in getattr(response, "content", []):
@@ -187,7 +199,7 @@ class Swytchcode:
                 # Isolate failures per block so one failing tool doesn't drop the
                 # results for the other tool_use blocks in the same turn.
                 try:
-                    content = str(self.tools.execute(cid, getattr(block, "input", {}), _raw_inputs=raw_inputs))
+                    content = str(self.tools.execute(cid, getattr(block, "input", {}), _raw_inputs=raw_inputs, timeout=timeout))
                     is_error = False
                 except Exception as e:
                     content = f"Error executing {cid}: {e}"

@@ -22,7 +22,7 @@ class OpenAIAgentsProvider(Provider):
             return await asyncio.to_thread(tool.execute, kwargs)
 
         return FunctionTool(
-            name=str(tool.name).replace(".", "_"),
+            name=str(tool.name)[:64],
             description=str(tool.description),
             params_json_schema=tool.input_schema,
             on_invoke_tool=_on_invoke,
