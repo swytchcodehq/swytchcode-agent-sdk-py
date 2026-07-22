@@ -54,5 +54,16 @@ class TestSchemaRouting(unittest.TestCase):
         self.assertEqual(result.get("params", {}).get("owner"), "swytchcode")
         self.assertEqual(result.get("body", {}).get("title"), "hello")
 
+    def test_split_by_location_array_wreken_shape(self):
+        from swytchcode_runtime.client import _split_by_location
+        raw_schema = [
+            { "owner": { "TYPE": "STRING", "LOCATION": "path" } },
+            { "title": { "TYPE": "STRING", "LOCATION": "body" } }
+        ]
+        args = {"owner": "swytchcode", "title": "hello"}
+        result = _split_by_location(raw_schema, args)
+        self.assertEqual(result.get("params", {}).get("owner"), "swytchcode")
+        self.assertEqual(result.get("body", {}).get("title"), "hello")
+
 if __name__ == '__main__':
     unittest.main()

@@ -92,6 +92,7 @@ class _Tools:
         # ID, populated as tools are built. Used to reverse names in
         # handle_tool_calls without a lossy "_"->"." string replace.
         self._name_to_cid: dict[str, str] = {}
+        self._cid_to_inputs: dict[str, Any] = {}
 
     def get(self, *, toolkits=None, tools=None, search=None):
         neutral = [self._tool(cid) for cid in self._ids(toolkits, tools, search)]
@@ -123,6 +124,7 @@ class _Tools:
         name = cid.replace(".", "_")
         self._name_to_cid[name] = cid
         raw_inputs = m.get("inputs")
+        self._cid_to_inputs[cid] = raw_inputs
         return Tool(
             canonical_id=cid,
             name=name,
@@ -178,11 +180,11 @@ class Swytchcode:
                 cid = self.tools._name_to_cid.get(block.name) or block.name.replace(
                     "_", "."
                 )
-                m = _discover.info(cid)
+                raw_inputs = self.tools._cid_to_inputs.get(cid, {})
                 # Isolate failures per block so one failing tool doesn't drop the
                 # results for the other tool_use blocks in the same turn.
                 try:
-                    content = str(self.tools.execute(cid, getattr(block, "input", {}), _raw_inputs=m.get("inputs")))
+                    content = str(self.tools.execute(cid, getattr(block, "input", {}), _raw_inputs=raw_inputs))
                     is_error = False
                 except Exception as e:
                     content = f"Error executing {cid}: {e}"
