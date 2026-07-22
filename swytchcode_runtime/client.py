@@ -64,6 +64,11 @@ def _split_by_location(inputs: Any, flat_args: dict) -> dict:
                     if isinstance(spec, dict):
                         loc = str(spec.get("LOCATION", spec.get("location", "body"))).lower()
                         locations[name] = loc
+    elif isinstance(inputs, dict) and isinstance(inputs.get("properties"), dict):
+        for name, spec in inputs["properties"].items():
+            if isinstance(spec, dict):
+                loc = str(spec.get("LOCATION", spec.get("location", "body"))).lower()
+                locations[name] = loc
 
     for k, v in flat_args.items():
         loc = locations.get(k, "body")
@@ -173,10 +178,11 @@ class Swytchcode:
                 cid = self.tools._name_to_cid.get(block.name) or block.name.replace(
                     "_", "."
                 )
+                m = _discover.info(cid)
                 # Isolate failures per block so one failing tool doesn't drop the
                 # results for the other tool_use blocks in the same turn.
                 try:
-                    content = str(self.tools.execute(cid, getattr(block, "input", {})))
+                    content = str(self.tools.execute(cid, getattr(block, "input", {}), _raw_inputs=m.get("inputs")))
                     is_error = False
                 except Exception as e:
                     content = f"Error executing {cid}: {e}"

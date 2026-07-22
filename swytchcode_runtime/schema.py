@@ -62,12 +62,13 @@ def simplify(inputs: Any) -> dict:
     # original required list only for the `required` key so optional/nested
     # fields stay optional instead of being dropped or forced required.
     for name, spec in props.items():
-        if (
-            isinstance(spec, dict)
-            and spec.get("type") == "object"
-            and "properties" in spec
-        ):
-            spec = simplify(spec)  # recurse into nested objects
+        if isinstance(spec, dict):
+            loc = str(spec.get("LOCATION", spec.get("location", ""))).lower()
+            if loc == "path" and name not in required:
+                required.append(name)
+                
+            if spec.get("type") == "object" and "properties" in spec:
+                spec = simplify(spec)  # recurse into nested objects
         keep[name] = spec
 
     return {

@@ -26,5 +26,33 @@ class TestSchemaRouting(unittest.TestCase):
         self.assertEqual(simplified["properties"]["userId"]["type"], "string")
         self.assertEqual(simplified["properties"]["amount"]["type"], "integer")
 
+    def test_json_schema_path_params_required(self):
+        raw_schema = {
+            "type": "object",
+            "properties": {
+                "owner": { "type": "string", "location": "path" },
+                "repo": { "type": "string", "location": "path" },
+                "title": { "type": "string", "location": "body" }
+            }
+        }
+        simplified = simplify(raw_schema)
+        self.assertIn("owner", simplified["required"])
+        self.assertIn("repo", simplified["required"])
+        self.assertNotIn("title", simplified["required"])
+
+    def test_split_by_location_json_schema(self):
+        from swytchcode_runtime.client import _split_by_location
+        raw_schema = {
+            "type": "object",
+            "properties": {
+                "owner": { "type": "string", "location": "path" },
+                "title": { "type": "string", "location": "body" }
+            }
+        }
+        args = {"owner": "swytchcode", "title": "hello"}
+        result = _split_by_location(raw_schema, args)
+        self.assertEqual(result.get("params", {}).get("owner"), "swytchcode")
+        self.assertEqual(result.get("body", {}).get("title"), "hello")
+
 if __name__ == '__main__':
     unittest.main()
