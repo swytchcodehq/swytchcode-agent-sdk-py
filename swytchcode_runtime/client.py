@@ -3,9 +3,28 @@
 from __future__ import annotations
 from typing import Any, Optional
 
+import re
+import hashlib
+
 from . import discover as _discover, schema as _schema, manage as _manage
 from .exec import exec_ as _exec
 from .providers.base import Provider, Tool
+
+
+MAX_TOOL_NAME_LEN = 64  # OpenAI and Anthropic strict limit
+
+
+def _make_alias(cid: str, taken: dict[str, str]) -> str:
+    base = re.sub(r"[^a-zA-Z0-9_-]", "_", cid)
+    existing = taken.get(base)
+    needs_hash = len(base) > MAX_TOOL_NAME_LEN or (existing and existing != cid)
+
+    if not needs_hash:
+        return base
+
+    h = hashlib.sha1(cid.encode("utf-8")).hexdigest()[:6]
+    keep = MAX_TOOL_NAME_LEN - 1 - len(h)
+    return base[:keep] + "_" + h
 
 
 def _toolkit_matches(toolkit: str, integration: str) -> bool:
@@ -36,7 +55,7 @@ def _strip_empty(obj: Any) -> Any:
 
     With 'expose all fields', agents often fill unused optional fields with "",
     which APIs like Stripe reject ("empty values are an attempt to unset").
-    Only None and "" are dropped — 0, False, [], {} are preserved as meaningful.
+    Only None and "" are dropped - 0, False, [], {} are preserved as meaningful.
     """
     if isinstance(obj, dict):
         out = {}
@@ -54,23 +73,31 @@ def _split_by_location(inputs: Any, flat_args: dict) -> dict:
     """Route flat args into body/params based on LOCATION metadata from wrekenfile."""
     body = {}
     params = {}
-    # inputs is the raw wrekenfile list-of-single-key-dicts with LOCATION
+    # inputs is the raw wrekenfile list-of-single-key-dicts with LOCATION, or a JSON schema dict
     locations = {}
+
     if isinstance(inputs, list):
         for item in inputs:
             if isinstance(item, dict):
                 for name, spec in item.items():
                     if isinstance(spec, dict):
-                        loc = (
-                            spec.get("LOCATION") or spec.get("location") or "body"
+                        loc = str(
+                            spec.get("LOCATION", spec.get("location", "body"))
                         ).lower()
                         locations[name] = loc
+    elif isinstance(inputs, dict) and isinstance(inputs.get("properties"), dict):
+        for name, spec in inputs["properties"].items():
+            if isinstance(spec, dict):
+                loc = str(spec.get("LOCATION", spec.get("location", "body"))).lower()
+                locations[name] = loc
+
     for key, val in flat_args.items():
         loc = locations.get(key, "body")
         if loc in ("path", "query"):
             params[key] = val
         else:
             body[key] = val
+
     result = {}
     if body:
         result["body"] = body
@@ -86,36 +113,52 @@ class _Tools:
         # ID, populated as tools are built. Used to reverse names in
         # handle_tool_calls without a lossy "_"->"." string replace.
         self._name_to_cid: dict[str, str] = {}
+        self._cid_to_inputs: dict[str, Any] = {}
 
     def get(self, *, toolkits=None, tools=None, search=None):
-        neutral = [self._tool(cid) for cid in self._ids(toolkits, tools, search)]
+        # Sort canonical IDs lexicographically before alias assignment.
+        # This ensures deterministic assignment order across runs, guaranteeing the
+        # same canonical ID always receives the exact same alias (and same hash if colliding).
+        ids = sorted(self._ids(toolkits, tools, search))
+        neutral = [self._tool(cid) for cid in ids]
         p = self._c.provider
         return p.format_tools(neutral) if p else neutral
 
     def execute(self, canonical_id: str, args: dict, **options) -> Any:
+        final_args = dict(args)
+
         # If args are flat (no body/params top-level keys), wrap them in body
         # as expected by the Swytchcode CLI kernel (like in run-workflow.js)
-        if "body" not in args and "params" not in args:
-            _raw_inputs = options.pop("_raw_inputs", None)
-            if _raw_inputs is not None:
-                args = _split_by_location(_raw_inputs, args)
+        if "body" not in final_args and "params" not in final_args:
+            raw_inputs = options.pop("_raw_inputs", None)
+            if raw_inputs is not None:
+                final_args = _split_by_location(raw_inputs, final_args)
             else:
-                args = {"body": args}
+                final_args = {"body": final_args}
+        else:
+            options.pop("_raw_inputs", None)
+
         # Drop empty optional fields (None/"") from body & params so values an
         # agent over-filled don't reach the API (e.g. Stripe rejects customer="").
-        args = dict(args)
-        if isinstance(args.get("body"), (dict, list)):
-            args["body"] = _strip_empty(args["body"])
-        if isinstance(args.get("params"), (dict, list)):
-            args["params"] = _strip_empty(args["params"])
+        if isinstance(final_args.get("body"), (dict, list)):
+            final_args["body"] = _strip_empty(final_args["body"])
+        if isinstance(final_args.get("params"), (dict, list)):
+            final_args["params"] = _strip_empty(final_args["params"])
         # Forward exec options (dry_run, raw, allow_raw, cwd, env) to the CLI.
-        return _exec(canonical_id, args, **options)
+        return _exec(canonical_id, final_args, **options)
 
     def _tool(self, cid: str) -> Tool:
         m = _discover.info(cid)
-        name = cid.replace(".", "_")
+        if not m or not m.get("inputs"):
+            raise ValueError(
+                f"Tool discovery failed for {cid}: Invalid or missing Wrekenfile schema"
+            )
+
+        name = _make_alias(cid, self._name_to_cid)
+
         self._name_to_cid[name] = cid
         raw_inputs = m.get("inputs")
+        self._cid_to_inputs[cid] = raw_inputs
         return Tool(
             canonical_id=cid,
             name=name,
@@ -160,7 +203,9 @@ class Swytchcode:
         self.provider = provider
         self.tools = _Tools(self)
 
-    def handle_tool_calls(self, response: Any) -> list[dict]:
+    def handle_tool_calls(
+        self, response: Any, timeout: float | None = None
+    ) -> list[dict]:
         """Helper to execute tools for non-agentic APIs like Anthropic."""
         results = []
         for block in getattr(response, "content", []):
@@ -171,10 +216,18 @@ class Swytchcode:
                 cid = self.tools._name_to_cid.get(block.name) or block.name.replace(
                     "_", "."
                 )
+                raw_inputs = self.tools._cid_to_inputs.get(cid, {})
                 # Isolate failures per block so one failing tool doesn't drop the
                 # results for the other tool_use blocks in the same turn.
                 try:
-                    content = str(self.tools.execute(cid, getattr(block, "input", {})))
+                    content = str(
+                        self.tools.execute(
+                            cid,
+                            getattr(block, "input", {}),
+                            _raw_inputs=raw_inputs,
+                            timeout=timeout,
+                        )
+                    )
                     is_error = False
                 except Exception as e:
                     content = f"Error executing {cid}: {e}"

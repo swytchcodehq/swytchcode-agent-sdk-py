@@ -6,7 +6,7 @@ the Tool itself via its `execute` closure (which runs the Swytchcode CLI): agent
 frameworks (OpenAI Agents, Vercel, LangGraph, CrewAI) invoke that closure directly
 during their own loop, while non-agentic APIs (Anthropic) run it through
 `Swytchcode.handle_tool_calls`. Note this is deliberately NOT Composio's two-class
-agentic/non-agentic split — execution lives on the tool, not an injected function.
+agentic/non-agentic split - execution lives on the tool, not an injected function.
 """
 
 from __future__ import annotations

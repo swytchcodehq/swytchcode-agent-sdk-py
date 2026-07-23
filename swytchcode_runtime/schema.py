@@ -36,15 +36,18 @@ def simplify(inputs: Any) -> dict:
                 props[name] = {"type": t, "description": spec.get("DESC", "")}
 
                 req = spec.get("REQUIRED", False)
-                is_required = req is True or (
-                    isinstance(req, str) and req.strip().lower() == "true"
+                loc = str(spec.get("LOCATION", spec.get("location", ""))).lower()
+                is_required = (
+                    loc == "path"
+                    or req is True
+                    or (isinstance(req, str) and req.strip().lower() == "true")
                 )
                 if is_required:
                     required.append(name)
 
         # Composio-style rule: expose ALL fields to the model and list only the
         # truly-required ones in `required`. A required-only approach hid optional
-        # fields — which left all-optional tools (e.g. Stripe) with an empty schema
+        # fields - which left all-optional tools (e.g. Stripe) with an empty schema
         # so the model called them with no arguments, and blinded the model to
         # optional fields on tools that do have some required ones.
         return {"type": "object", "properties": props, "required": required}
@@ -61,12 +64,13 @@ def simplify(inputs: Any) -> dict:
     # original required list only for the `required` key so optional/nested
     # fields stay optional instead of being dropped or forced required.
     for name, spec in props.items():
-        if (
-            isinstance(spec, dict)
-            and spec.get("type") == "object"
-            and "properties" in spec
-        ):
-            spec = simplify(spec)  # recurse into nested objects
+        if isinstance(spec, dict):
+            loc = str(spec.get("LOCATION", spec.get("location", ""))).lower()
+            if loc == "path" and name not in required:
+                required.append(name)
+
+            if spec.get("type") == "object" and "properties" in spec:
+                spec = simplify(spec)  # recurse into nested objects
         keep[name] = spec
 
     return {

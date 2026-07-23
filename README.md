@@ -176,16 +176,16 @@ if __name__ == "__main__":
     run_agent()
 ```
 
-### Selecting tools — `swx.tools.get(...)`
+### Selecting tools - `swx.tools.get(...)`
 
 Pass exactly one selector; IDs resolve against your local Swytchcode state and remote search:
 
-- `toolkits=["stripe"]` — every enabled tool whose integration matches a toolkit.
-- `tools=["charges.charge.create"]` — explicit canonical IDs.
-- `search="refund a charge"` — natural-language discovery (via `swytchcode discover`).
+- `toolkits=["stripe"]` - every enabled tool whose integration matches a toolkit.
+- `tools=["charges.charge.create"]` - explicit canonical IDs.
+- `search="refund a charge"` - natural-language discovery (via `swytchcode discover`).
 
-Each returned tool carries a **full input schema** — every field is surfaced to the model, with
-only the truly-required ones marked `required` — and an `execute` callback that runs `swytchcode
+Each returned tool carries a **full input schema** - every field is surfaced to the model, with
+only the truly-required ones marked `required` - and an `execute` callback that runs `swytchcode
 exec` for you (empty optional values are stripped before the call so APIs like Stripe don't reject them).
 
 ### Supported providers

@@ -79,11 +79,11 @@ def main():
     
     update_version(new_version)
     
-    print(f"\nNext steps:")
-    print(f"  1. Review changes: git diff pyproject.toml")
+    print("\nNext steps:")
+    print("  1. Review changes: git diff pyproject.toml")
     print(f"  2. Commit: git commit -am 'Bump version to {new_version}'")
     print(f"  3. Tag: git tag -a v{new_version} -m 'Release v{new_version}'")
-    print(f"  4. Push: git push origin main --tags")
+    print("  4. Push: git push origin main --tags")
 
 
 if __name__ == "__main__":
